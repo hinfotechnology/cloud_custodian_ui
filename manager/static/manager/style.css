@@ -1,0 +1,130 @@
+:root {
+    --primary-color: #6a11cb;
+    --secondary-color: #2575fc;
+    --background-color: #f0f2f5;
+    --card-background-color: #ffffff;
+    --text-color: #333;
+    --heading-color: #333;
+    --border-radius: 8px;
+    --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+body {
+    background-color: var(--background-color);
+    color: var(--text-color);
+    font-family: 'Poppins', sans-serif;
+}
+
+.navbar {
+    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    box-shadow: var(--box-shadow);
+}
+
+.navbar-brand, .nav-link {
+    color: #fff !important;
+    font-weight: 500;
+}
+
+.container {
+    padding-top: 2rem;
+}
+
+.card {
+    border: none;
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    background-color: var(--card-background-color);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+}
+
+.card-header {
+    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    color: #fff;
+    font-weight: 600;
+    border-top-left-radius: var(--border-radius);
+    border-top-right-radius: var(--border-radius);
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    border: none;
+    transition: background-color 0.3s ease;
+}
+
+.btn-primary:hover {
+    background-color: var(--secondary-color);
+}
+
+.table {
+    background-color: var(--card-background-color);
+}
+
+.table thead {
+    background-color: #f8f9fa;
+}
+
+a {
+    color: var(--primary-color);
+}
+
+a:hover {
+    color: var(--secondary-color);
+}
+
+.dark-mode {
+    --background-color: #1a1a2e !important;
+    --card-background-color: #162447 !important;
+    --text-color: #e0e0e0 !important;
+    --heading-color: #ffffff !important;
+}
+
+.dark-mode .navbar {
+    background: linear-gradient(90deg, #162447, #1f4068);
+}
+
+.dark-mode .card {
+    background-color: var(--card-background-color);
+}
+
+.dark-mode .card-header {
+    background: linear-gradient(90deg, #162447, #1f4068);
+}
+
+.dark-mode .table {
+    background-color: var(--card-background-color);
+    color: var(--text-color);
+}
+
+.dark-mode .table thead {
+    background-color: #1f4068;
+}
+
+.dark-mode a {
+    color: #87cefa;
+}
+
+.dark-mode a:hover {
+    color: #add8e6;
+}
+
+.dark-mode .form-control {
+    background-color: #1f4068;
+    color: #e0e0e0;
+    border-color: #1f4068;
+}
+
+.dark-mode .form-control:focus {
+    background-color: #1f4068;
+    color: #e0e0e0;
+    border-color: #87cefa;
+    box-shadow: 0 0 0 0.25rem rgba(135, 206, 250, 0.25);
+}
+
+.dark-mode .form-check-label {
+    color: #e0e0e0;
+}

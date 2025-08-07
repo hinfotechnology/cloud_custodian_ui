@@ -1,0 +1,48 @@
+policies:
+  - name: discover-aws-services
+    resource: account
+    region: us-east-1
+    description: |
+      Discover active AWS services by querying resources across multiple services.
+    mode:
+      type: periodic
+      schedule: "rate(1 day)"
+      role: arn:aws:iam::<account-id>:role/CloudCustodianRole
+    actions:
+      - type: notify
+        template: default
+        subject: "AWS Services in Use - Daily Inventory"
+        to:
+          - your-email@example.com
+        transport:
+          type: sqs
+          queue: https://sqs.us-east-1.amazonaws.com/<account-id>/c7n-notify
+  # EC2 Instances
+  - name: list-ec2-instances
+    resource: ec2
+    filters:
+      - "State.Name": present
+  # S3 Buckets
+  - name: list-s3-buckets
+    resource: s3
+  # RDS Instances
+  - name: list-rds-instances
+    resource: rds
+  # IAM Roles
+  - name: list-iam-roles
+    resource: iam-role
+  # Lambda Functions
+  - name: list-lambda-functions
+    resource: lambda
+  # DynamoDB Tables
+  - name: list-dynamodb-tables
+    resource: dynamodb-table
+  # CloudTrail Trails
+  - name: list-cloudtrail-trails
+    resource: cloudtrail
+  # VPCs
+  - name: list-vpcs
+    resource: vpc
+  # CloudWatch Log Groups
+  - name: list-cloudwatch-log-groups
+    resource: log-group

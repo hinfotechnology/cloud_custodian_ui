@@ -1,0 +1,81 @@
+{% extends 'manager/base.html' %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Policies</h5>
+            <a href="{% url 'manager:upload_policy' %}" class="btn btn-light btn-sm">Upload Policy</a>
+        </div>
+    </div>
+    <div class="card-body">
+        <table class="table table-hover">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Created At</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for policy in policies %}
+        <tr>
+            <td>{{ policy.name }}</td>
+            <td>{{ policy.description }}</td>
+            <td>{{ policy.created_at }}</td>
+            <td>
+                <a href="{% url 'manager:edit_policy' policy.pk %}" class="btn btn-sm btn-outline-primary">Edit</a>
+                <button class="btn btn-sm btn-outline-secondary run-policy-btn" data-pk="{{ policy.pk }}" data-url="{% url 'manager:run_policy' policy.pk %}">Run Policy</button>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+    </div>
+</div>
+
+<!-- Log Modal -->
+<div class="modal fade" id="logModal" tabindex="-1" aria-labelledby="logModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="logModalLabel">Policy Run Output</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <pre id="log-output"></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const runButtons = document.querySelectorAll('.run-policy-btn');
+    const logModal = new bootstrap.Modal(document.getElementById('logModal'));
+    const logOutput = document.getElementById('log-output');
+
+    runButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const url = this.dataset.url;
+            logOutput.textContent = 'Running policy...';
+            logModal.show();
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        logOutput.textContent = data.output;
+                    } else {
+                        logOutput.textContent = `Error:\n${data.output}\n${data.error || ''}`;
+                    }
+                })
+                .catch(error => {
+                    logOutput.textContent = 'An unexpected error occurred: ' + error;
+                });
+        });
+    });
+});
+</script>
+{% endblock %}

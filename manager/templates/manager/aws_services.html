@@ -1,0 +1,75 @@
+{% extends 'manager/base.html' %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">AWS Service Usage</h5>
+    </div>
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="aws_access_key_id" class="form-label">AWS Access Key ID</label>
+                    <input type="text" class="form-control" id="aws_access_key_id" name="aws_access_key_id" required>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="aws_secret_access_key" class="form-label">AWS Secret Access Key</label>
+                    <input type="password" class="form-control" id="aws_secret_access_key" name="aws_secret_access_key" required>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="aws_region" class="form-label">AWS Region</label>
+                    <input type="text" class="form-control" id="aws_region" name="aws_region" placeholder="e.g., us-east-1" required>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Get Service Usage</button>
+        </form>
+    </div>
+</div>
+
+{% if error %}
+<div class="alert alert-danger" role="alert">
+    {{ error }}
+</div>
+{% endif %}
+
+{% if services %}
+<h2>Service Details</h2>
+<div class="accordion" id="servicesAccordion">
+    {% for service_name, resources in services.items %}
+    <div class="accordion-item">
+        <h2 class="accordion-header" id="heading-{{ forloop.counter }}">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ forloop.counter }}" aria-expanded="false" aria-controls="collapse-{{ forloop.counter }}">
+                {{ service_name }} ({{ resources|length }})
+            </button>
+        </h2>
+        <div id="collapse-{{ forloop.counter }}" class="accordion-collapse collapse" aria-labelledby="heading-{{ forloop.counter }}" data-bs-parent="#servicesAccordion">
+            <div class="accordion-body">
+                {% if resources %}
+                <ul class="list-group">
+                    {% for resource in resources %}
+                    <li class="list-group-item">
+                        {% if resource.id %}
+                            ID: {{ resource.id }}
+                        {% elif resource.name %}
+                            Name: {{ resource.name }}
+                        {% endif %}
+                        - Status: {{ resource.status }}
+                        - Region: {{ resource.region }}
+                        - Created: {{ resource.creation_date|date:"Y-m-d H:i:s" }}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p>No resources found.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}

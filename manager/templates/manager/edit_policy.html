@@ -1,0 +1,28 @@
+{% extends 'manager/base.html' %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Edit Policy</h5>
+    </div>
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="name" class="form-label">Policy Name</label>
+                <input type="text" class="form-control" id="name" name="name" value="{{ policy.name }}" required>
+            </div>
+            <div class="mb-3">
+                <label for="description" class="form-label">Description</label>
+                <textarea class="form-control" id="description" name="description" rows="3">{{ policy.description }}</textarea>
+            </div>
+            <div class="mb-3">
+                <label for="policy_content" class="form-label">Policy Content (YAML)</label>
+                <textarea class="form-control" id="policy_content" name="policy_content" rows="15" required>{{ policy_content }}</textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <a href="{% url 'manager:policy_list' %}" class="btn btn-outline-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}
