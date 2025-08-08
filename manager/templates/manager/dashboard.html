@@ -1,0 +1,82 @@
+{% extends 'manager/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center">
+        <h1 class="mt-4">AWS Dashboard</h1>
+        <div>
+            {% if last_refreshed %}
+            <p class="text-muted mb-0">Last Refreshed: {{ last_refreshed|date:"Y-m-d H:i:s" }}</p>
+            {% endif %}
+            <a href="?refresh=true" class="btn btn-primary">Refresh Data</a>
+        </div>
+    </div>
+    <p>Welcome to your AWS resource dashboard. Here is a summary of your resources.</p>
+
+    {% if error %}
+    <div class="alert alert-danger" role="alert">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    {% if resource_counts %}
+    <div class="chart-container">
+        <canvas id="resourceChart"></canvas>
+    </div>
+    {% else %}
+    <p>No resources found or there was an error fetching them.</p>
+    {% endif %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const resourceCounts = JSON.parse('{{ resource_counts_json|safe }}');
+        const labels = Object.keys(resourceCounts);
+        const data = Object.values(resourceCounts);
+
+        const ctx = document.getElementById('resourceChart').getContext('2d');
+        const resourceChart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Resource Count',
+                    data: data,
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.8)',
+                        'rgba(54, 162, 235, 0.8)',
+                        'rgba(255, 206, 86, 0.8)',
+                        'rgba(75, 192, 192, 0.8)',
+                        'rgba(153, 102, 255, 0.8)',
+                        'rgba(255, 159, 64, 0.8)'
+                    ],
+                    borderColor: [
+                        'rgba(255, 99, 132, 1)',
+                        'rgba(54, 162, 235, 1)',
+                        'rgba(255, 206, 86, 1)',
+                        'rgba(75, 192, 192, 1)',
+                        'rgba(153, 102, 255, 1)',
+                        'rgba(255, 159, 64, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    title: {
+                        display: true,
+                        text: 'AWS Resource Distribution'
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

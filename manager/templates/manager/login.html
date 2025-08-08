@@ -1,0 +1,28 @@
+{% extends 'manager/login_base.html' %}
+
+{% block content %}
+<div class="login-card card">
+    <div class="card-header text-center">
+        <h4>AWS Login</h4>
+    </div>
+    <div class="card-body">
+        {% if error %}
+            <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+        <form method="post" action="{% url 'manager:login' %}">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="aws_access_key_id" class="form-label">AWS Access Key ID</label>
+                <input type="text" class="form-control" id="aws_access_key_id" name="aws_access_key_id" required>
+            </div>
+            <div class="mb-3">
+                <label for="aws_secret_access_key" class="form-label">AWS Secret Access Key</label>
+                <input type="password" class="form-control" id="aws_secret_access_key" name="aws_secret_access_key" required>
+            </div>
+            <div class="d-grid">
+                <button type="submit" class="btn btn-primary">Login</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
