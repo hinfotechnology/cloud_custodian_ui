@@ -8,8 +8,10 @@ from django.http import JsonResponse
 from .models import Policy
 from django.conf import settings
 from django.contrib.auth import logout
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.contrib import messages
 
 def login_view(request):
     if request.session.get('aws_access_key_id'):
@@ -146,11 +148,29 @@ def get_aws_resources(aws_access_key_id, aws_secret_access_key, initial_region='
             'Security Groups': [],
         }
 
-        # S3 is a global service, so we only need to query it once.
+        # S3 is a global service, but we need the region for each bucket for operations.
         s3 = session.client('s3')
         try:
             buckets = s3.list_buckets().get('Buckets', [])
-            all_services['S3 Buckets'] = [{'name': b['Name'], 'region': 'global', 'status': 'N/A', 'creation_date': b['CreationDate'].isoformat()} for b in buckets]
+            for bucket in buckets:
+                try:
+                    location_info = s3.get_bucket_location(Bucket=bucket['Name'])
+                    region = location_info['LocationConstraint']
+                    if region is None:
+                        # Buckets in us-east-1 have a null location constraint.
+                        region = 'us-east-1'
+                except ClientError as e:
+                    # If we can't get bucket location, we can't do much with it.
+                    # We can log the error and maybe default to a region.
+                    print(f"Could not get location for bucket {bucket['Name']}: {e}")
+                    region = 'us-east-1'  # Fallback region
+
+                all_services['S3 Buckets'].append({
+                    'name': bucket['Name'],
+                    'region': region,
+                    'status': 'N/A',
+                    'creation_date': bucket['CreationDate'].isoformat()
+                })
         except ClientError as e:
             print(f"Could not list S3 buckets: {e}")
 
@@ -202,7 +222,7 @@ def get_aws_resources(aws_access_key_id, aws_secret_access_key, initial_region='
                     print(f"Could not process region {region}: {e}")
             return regional_services
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor: # Reduced max_workers to avoid rate limiting
+        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor: # Increased max_workers to improve performance
             future_to_region = {executor.submit(fetch_resources_for_region, region): region for region in regions}
             for future in concurrent.futures.as_completed(future_to_region):
                 try:
@@ -228,14 +248,7 @@ def dashboard(request):
     if not aws_access_key_id or not aws_secret_access_key:
         return redirect('manager:login')
 
-    if 'services' not in request.session or request.GET.get('refresh'):
-        services, error = get_aws_resources(aws_access_key_id, aws_secret_access_key)
-        request.session['services'] = services
-        request.session['error'] = error
-        request.session['last_refreshed'] = datetime.now().isoformat()
-    else:
-        services = request.session['services']
-        error = request.session['error']
+    services, error = get_aws_resources(aws_access_key_id, aws_secret_access_key)
 
     if services:
         resource_counts = {key: len(value) for key, value in services.items()}
@@ -247,7 +260,6 @@ def dashboard(request):
         'error': error,
         'resource_counts': resource_counts,
         'resource_counts_json': json.dumps(resource_counts),
-        'last_refreshed': request.session.get('last_refreshed')
     })
 
 
@@ -258,12 +270,191 @@ def aws_services(request):
     if not aws_access_key_id or not aws_secret_access_key:
         return redirect('manager:login')
 
-    if 'services' not in request.session or request.GET.get('refresh'):
-        services, error = get_aws_resources(aws_access_key_id, aws_secret_access_key)
-        request.session['services'] = services
-        request.session['error'] = error
-    else:
-        services = request.session['services']
-        error = request.session['error']
+    services, error = get_aws_resources(aws_access_key_id, aws_secret_access_key)
 
     return render(request, 'manager/aws_services.html', {'services': services, 'error': error})
+
+
+def cost_view(request):
+    aws_access_key_id = request.session.get('aws_access_key_id')
+    aws_secret_access_key = request.session.get('aws_secret_access_key')
+
+    if not aws_access_key_id or not aws_secret_access_key:
+        return redirect('manager:login')
+
+    try:
+        session = boto3.Session(
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            region_name='us-east-1'
+        )
+        ce_client = session.client('ce')
+
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=180)
+
+        response = ce_client.get_cost_and_usage(
+            TimePeriod={
+                'Start': start_date.strftime('%Y-%m-%d'),
+                'End': end_date.strftime('%Y-%m-%d')
+            },
+            Granularity='MONTHLY',
+            Metrics=['UnblendedCost'],
+            GroupBy=[{'Type': 'DIMENSION', 'Key': 'SERVICE'}]
+        )
+
+        all_cost_data = []
+        for result in response['ResultsByTime']:
+            for group in result['Groups']:
+                all_cost_data.append({
+                    'service': group['Keys'][0],
+                    'amount': float(group['Metrics']['UnblendedCost']['Amount']),
+                    'date': result['TimePeriod']['Start']
+                })
+
+        search_query = request.GET.get('q', '')
+        if search_query:
+            all_cost_data = [
+                item for item in all_cost_data
+                if search_query.lower() in item['service'].lower()
+            ]
+
+        paginator = Paginator(all_cost_data, 10)  # Show 10 items per page
+        page_number = request.GET.get('page')
+        try:
+            cost_data = paginator.page(page_number)
+        except PageNotAnInteger:
+            cost_data = paginator.page(1)
+        except EmptyPage:
+            cost_data = paginator.page(paginator.num_pages)
+
+        chart_data = {
+            'labels': [item['date'] for item in all_cost_data],
+            'datasets': [
+                {
+                    'label': service,
+                    'data': [item['amount'] if item['service'] == service else 0 for item in all_cost_data],
+                    'backgroundColor': f'rgba({i*50 % 255}, {i*100 % 255}, {i*150 % 255}, 0.5)',
+                    'borderColor': f'rgba({i*50 % 255}, {i*100 % 255}, {i*150 % 255}, 1)',
+                    'borderWidth': 1
+                } for i, service in enumerate(set([item['service'] for item in all_cost_data]))
+            ]
+        }
+
+        return render(request, 'manager/cost.html', {
+            'cost_data': cost_data,
+            'search_query': search_query,
+            'chart_data': json.dumps(chart_data)
+        })
+    except ClientError as e:
+        return render(request, 'manager/cost.html', {'error': e.response['Error']['Message']})
+    except Exception as e:
+        return render(request, 'manager/cost.html', {'error': str(e)})
+
+
+def resource_details(request, service_name, resource_id):
+    aws_access_key_id = request.session.get('aws_access_key_id')
+    aws_secret_access_key = request.session.get('aws_secret_access_key')
+
+    if not aws_access_key_id or not aws_secret_access_key:
+        return redirect('manager:login')
+
+    services, error = get_aws_resources(aws_access_key_id, aws_secret_access_key)
+
+    if error:
+        return render(request, 'manager/resource_details.html', {'error': error})
+
+    resources = services.get(service_name, [])
+    
+    resource = None
+    for res in resources:
+        if res.get('id') == resource_id or res.get('name') == resource_id:
+            resource = res
+            break
+    
+    if not resource:
+        return render(request, 'manager/resource_details.html', {'error': 'Resource not found.'})
+
+    return render(request, 'manager/resource_details.html', {
+        'service_name': service_name,
+        'resource_id': resource_id,
+        'resource': resource
+    })
+
+
+def delete_resource(request, service_name, resource_id):
+    if request.method == 'POST':
+        aws_access_key_id = request.session.get('aws_access_key_id')
+        aws_secret_access_key = request.session.get('aws_secret_access_key')
+        region = request.POST.get('region')
+
+        if not region:
+            messages.error(request, 'Region not specified.')
+            return redirect('manager:aws_services')
+
+        try:
+            if service_name == 'S3 Buckets':
+                # For S3, the client must be configured with the specific region of the bucket.
+                s3 = boto3.client(
+                    's3',
+                    aws_access_key_id=aws_access_key_id,
+                    aws_secret_access_key=aws_secret_access_key,
+                    region_name=region
+                )
+                # Before deleting the bucket, we must delete all objects within it.
+                paginator = s3.get_paginator('list_objects_v2')
+                pages = paginator.paginate(Bucket=resource_id)
+
+                delete_us = dict(Objects=[])
+                for item in pages.search('Contents'):
+                    if item:
+                        delete_us['Objects'].append(dict(Key=item['Key']))
+
+                # Check if there are any objects to delete
+                if delete_us['Objects']:
+                    s3.delete_objects(Bucket=resource_id, Delete=delete_us)
+                
+                s3.delete_bucket(Bucket=resource_id)
+            else:
+                session = boto3.Session(
+                    aws_access_key_id=aws_access_key_id,
+                    aws_secret_access_key=aws_secret_access_key,
+                    region_name=region
+                )
+                if service_name == 'EC2 Instances':
+                    ec2 = session.client('ec2')
+                    ec2.terminate_instances(InstanceIds=[resource_id])
+                elif service_name == 'RDS Instances':
+                    rds = session.client('rds')
+                    rds.delete_db_instance(DBInstanceIdentifier=resource_id, SkipFinalSnapshot=True)
+            
+            messages.success(request, f'Resource {resource_id} has been deleted successfully.')
+        except ClientError as e:
+            messages.error(request, f'Error deleting resource {resource_id}: {e}')
+    return redirect('manager:aws_services')
+
+def deactivate_resource(request, service_name, resource_id):
+    if request.method == 'POST':
+        aws_access_key_id = request.session.get('aws_access_key_id')
+        aws_secret_access_key = request.session.get('aws_secret_access_key')
+        region = request.POST.get('region')
+
+        if not region:
+            messages.error(request, 'Region not specified.')
+            return redirect('manager:aws_services')
+
+        try:
+            session = boto3.Session(
+                aws_access_key_id=aws_access_key_id,
+                aws_secret_access_key=aws_secret_access_key,
+                region_name=region
+            )
+            if service_name == 'EC2 Instances':
+                ec2 = session.client('ec2')
+                ec2.stop_instances(InstanceIds=[resource_id])
+            # Add other deactivation logic here
+            
+            messages.success(request, f'Resource {resource_id} has been deactivated successfully.')
+        except ClientError as e:
+            messages.error(request, f'Error deactivating resource {resource_id}: {e}')
+    return redirect('manager:aws_services')

@@ -12,4 +12,8 @@ urlpatterns = [
     path('edit/<int:pk>/', views.edit_policy, name='edit_policy'),
     path('run/<int:pk>/', views.run_policy, name='run_policy'),
     path('aws-services/', views.aws_services, name='aws_services'),
+    path('cost/', views.cost_view, name='cost'),
+    path('resource/<str:service_name>/<str:resource_id>/', views.resource_details, name='resource_details'),
+    path('resource/<str:service_name>/<str:resource_id>/delete/', views.delete_resource, name='delete_resource'),
+    path('resource/<str:service_name>/<str:resource_id>/deactivate/', views.deactivate_resource, name='deactivate_resource'),
 ]
